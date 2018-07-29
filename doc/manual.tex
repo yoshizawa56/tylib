@@ -1,0 +1,486 @@
+\documentclass[report, 11pt, uplatex]{jsbook}
+\usepackage{braket}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage[backend=biber, style=numeric]{biblatex}
+\usepackage{colortbl}
+\usepackage{amsmath}
+\usepackage{arydshln}
+\usepackage{listings, plistings}
+\usepackage{comment}
+\usepackage[dvipdfmx]{hyperref}
+\usepackage{pxjahyper}
+\addbibresource{paper.bib}
+\newcommand{\ani}[2]{\hat{{#1}}_{#2}}
+\newcommand{\cre}[2]{\hat{{#1}}_{#2}^{\dagger}}
+\newcommand{\mbf}[1]{\mathbf{#1}}
+\newcommand{\br}[1]{\left(#1\right)}
+\newcommand{\mbr}[1]{\left\{#1\right\}}
+\newcommand{\sbr}[1]{\left[#1\right]}
+\newcommand{\tr}[1]{\mathrm{Tr}\sbr{#1}}
+\newcommand{\hami}{{\mathcal{\hat{H}}}}
+
+\title{ライブラリマニュアル}
+\author{吉沢徹}
+\date{\today}
+
+\begin{document}
+	\maketitle
+	\tableofcontents
+	\chapter{ライブラリの構成}
+	本ライブラリは以下の7つのヘッダによって構成されている．
+	\subsection*{bit.h}
+	システムのサイズと粒子数から計算基底を構築する．
+	
+	\subsection*{observable\_base.h}
+	bit.hで形成した計算基底の元で，物理量を行列表示するための基底クラスが記述されている．
+	
+	\subsection*{observable.h}
+	observable\_base.hに基づいて具体的な物理量を定義するファイル．
+	
+	\subsection*{translation.h}
+	bit.hで形成した計算基底を並進対称操作の固有ベクトルで張られる基底に移す．
+	
+	\subsection*{ss.h}
+	Sakurai-Sugiura法でエネルギーシェル内部の固有状態を計算するファイル．
+	
+	\subsection*{free\_fermion.h}
+	フリーフェルミオンで記述される系に関する計算を行う．
+	
+	\subsection*{log.h}
+	log出力に関するクラスが記述されている．
+	
+	\chapter{事前にインストールするライブラリ}
+	このライブラリを利用するに当たって，事前にインストールする必要があるライブラリについて説明する．なお，以下の説明では，ライブラリは全て $\sim$/cpp\_library　の下に展開するもと仮定する．他のディレクトリに展開をしたい場合には，そのディレクトリに置き換えて行うこと．
+	
+	このライブラリはC++の行列演算ライブラリEigenを用いて計算を行っている．そのため，事前にEigenをダウンロードしてCPATHが通ったライブラリ上に展開しておく必要がある．Eigenはテンプレートライブラリなので，ビルドを行う必要はなく，公式サイト(\href{http://eigen.tuxfamily.org/index.php?title=Main\_Page}{http://eigen.tuxfamily.org/index.php?title=Main\_Page})からソースコードをダウンロードし，展開するだけで利用することができる．CPATHを通すためには，.bashrcに
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	export CPATH=$CPATH:~/cpp_library
+	\end{lstlisting}
+	を追加すればよい．
+
+	また，ss.hでは線形方程式を解くために，fortranのライブラリKOmegaを用いている．KOmegaはGithubからダウンロードすることができる(\href{https://github.com/issp-center-dev/Komega}{https://github.com/issp-center-dev/Komega})．ダウンロードしたファイルを展開したディレクトリに移動し，
+	
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	mkdir ~/cpp_library/Komega
+	./configure --prefix=\$(~/cpp_library/Komegaへのフルパス)　--enable-threadsafe
+	make
+	make install
+	\end{lstlisting}
+	
+	と入力するとss.hで用いることができるようになる．本ライブラリでは，Komegaを動的ライブラリとして用いているため，Komegaにパスを通さなくてはならない．これは.bashrcに
+	
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	export LIBRARY_PATH=$LIBRARY_PATH:~/cpp_library/Komega/lib
+	export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:~/cpp_library/Komega/lib
+	\end{lstlisting}
+	を追加すればよい．（Linuxの場合にはDYLD\_LIBRARY\_PATHではなくLD\_LIBRARY\_PATHを書き換える）
+
+	\chapter{ビルド・インストール}
+	本ライブラリはautotoolsによってMAKEFILEを半自動的に生成することができる．そのため，KOmegaと同様に，展開したディレクトリに移動して，
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	mkdir ~/cpp_library/tylib
+	./configure --prefix=\$(~/cpp_library/tylibへのフルパス)
+	make
+	make install
+	\end{lstlisting}
+	と入力すればインストールすることができる．このコマンド例では，$\sim$/cpp\_library/tylib に本ライブラリがインストールされる．
+	
+	また，共有ライブラリとして使用するために，KOmegaと同様にパスを通す必要がある．
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	export LIBRARY_PATH=$LIBRARY_PATH:~/cpp_library/tylib/lib
+	export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:~/cpp_library/tylib/lib
+	\end{lstlisting}
+	
+	\chapter{ライブラリの使用}
+	本ライブラリは，C++プログラムのヘッダ部分に
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	#include <tylib/include/bit.h>
+	#include <tylib/include/observable.h>
+	\end{lstlisting}
+	などと，利用するヘッダファイルをインクルードすることで用いる．
+	
+	本ライブラリではC++11で実装されている乱数ライブラリを用いていることから，コンパイルの際には，C++11を用いるオプションをつけなければならない．また，ライブラリの実態とリンクをしなければならないため，-ltylibというオプションも必要である．このオプションは適切にパスが通っていないと使えないため，コンパイルの際にエラーが出る場合には，まずパスの確認をおすすめする．以上を踏まえると，コンパイルは以下の例のように行う．
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	g++ $(filename) -O2 -std=c++11 -ltylib
+	\end{lstlisting}
+	
+	ss.hではKOmegaのサブルーチンを使用しているため，ss.hを使う場合にはコンパイルオプションにさらに -lkomega -lblasを追加して
+	\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, frame=single]
+	g++ $(filename) -O2 -std=c++11 -ltylib -lkomega -lblas
+	\end{lstlisting}
+	としなければならない．（Linuxでこのライブラリを用いる場合には，ss.hの使用の有無に関わらず -lkomega -lblas のオプションが必要となるので注意．）また，コンパイラがintelコンパイラの場合には　 -lblas　ではなく -mkl を用いる必要がある．
+	
+	\chapter{各ヘッダファイルの詳細}
+	この章では，各ヘッダファイルのメンバとその使い方について説明する．
+	
+	\section{bit.h}
+	\subsubsection*{class computational\_basis}
+	計算基底を張るクラス．以下にクラスメンバを示す．計算基底は辞書式で並べられている．
+	
+	\begin{itemize}
+		\item computational\_basis::computational\_basis(int L, int N)
+		
+		コンストラクタ．Lはサイト数，Nは粒子数（スピンアップの数）を表す．N = -1の場合には，粒子数非保存（磁化比保存）モードになり，$2^L$次元の基底が張られる．
+		
+		\item int computational\_basis::index(Eigen::VectorXi \&bits)
+		
+		与えられたビット列 Eigen::VectorXi bits に対応する計算基底のインデックスを返す．
+		
+		\item Eigen::VectorXi computational\_basis::bits(long index)
+		
+		与えられた計算基底のインデックスに対応するビット列を返す．
+		
+		\item int computational\_basis::ref\_L()
+		
+		Lの値を返す．
+		
+		\item int computational\_basis::ref\_N)
+		
+		Nの値を返す．
+		
+		\item int computational\_basis::ref\_d()
+		
+		計算基底の次元dの値を返す．
+		
+		\item bool computational\_basis::isConserved()
+		
+		粒子数保存モードのときにtrue，非保存モードのときにはfalseを返す．
+		
+	\end{itemize}
+	
+	\section{observable\_base.h}
+	本ライブラリでは，物理量はクラスとして定義される．observable\_base.h はobservable\_baseと observable\_base\_complexという物理量クラスを定義する上での基底クラスとなる2つのクラスと，物理量の定義を支援するための幾つかの関数からなる．
+	
+	\subsubsection*{class observable\_base}
+	物理量の基底クラスとなるクラス．定義される物理量が計算基底の元で行列表示した場合に実行列になる場合にはこれを用いる．
+	
+	\begin{itemize}
+		\item virtual std::vectorstd::pair<int, double>> observable\_base::cal\_elements(int index, computational\_basis \&basis)
+		
+		物理量を計算基底 basisの元で行列表示する計算規則の定義．与えられた計算基底のインデックスの行で非ゼロの成分を持つ列のインデックスとその成分で形成されるstd::pair<int, double> をstd::vectorに格納して返す．observable\_base では，この関数は仮想的に実装されているだけで，空のstd::vector<std::pair<int, double> >を返す．実際に物理量を定義する際には，この関数を定義したい物理量に即したものに書き換えることで，物理量の計算基底の元での行列表示が得られる．
+		
+		\item void observable\_base::cal\_matrix(Eigen::SparseMatrix<double> \&H, computational\_basis \&basis)
+		
+		cal\_elementsで定義された行列成分の計算規則を用いて，物理量の計算基底の元での行列表示を計算して疎行列H に格納する．この関数は，物理量によらず共通の処理を行うため，継承しても書き換える必要はない．
+		
+	\end{itemize}
+	
+	\subsubsection*{class observable\_base\_complex}
+	物理量の基底クラスとなるクラス．定義される物理量が計算基底の元で行列表示した場合に複素行列になる場合にはこれを用いる．
+	
+	\begin{itemize}
+		\item virtual std::vectorstd::pair<int, std::complex<double> >> observable\_base\_complex::cal\_elements(int index, computational\_basis \&basis)
+		
+		物理量を計算基底 basisの元で行列表示する計算規則の定義．
+		
+		\item void observable\_base\_complex::cal\_matrix(Eigen::SparseMatrix<std::complex<double> > \&H, computational\_basis \&basis)
+		
+		cal\_elementsで定義された行列成分の計算規則を用いて，物理量の計算基底の元での行列表示を計算して疎行列H に格納する．この関数は，物理量によらず共通の処理を行うため，継承しても書き換える必要はない．
+		
+	\end{itemize}
+
+	\subsubsection*{std::vector<std::pair<int, int> > make\_bond(int L, int neighbor)}
+	１次元格子において，neighbor次近接するサイト同士のpairを作成する．neighbor = 1で最近接，neighbor = 2で次近接のbondを作成することができる．この関数で作成されるbondは以下の関数の引数として用いることができる．
+
+	\subsubsection*{std::vector<std::pair<int, double> > cal\_hopping(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, double J)}
+	バードコアボソンにおけるホッピング$J\sum_{<i,j>}\sbr{\cre{b}{i}\ani{b}{j}+h.c.}$の行列成分を計算する．この関数は非対角的であるので，l行に非ゼロ成分を持つ列とその成分のpairを返す．どのサイト間でホッピングがあるかはstd::vector<std::pair<int, int> > bonds で定義される．
+	
+	\subsubsection*{std::vector<std::pair<int, double> > cal\_hopping(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, std::vector<double> \&J)}
+	バードコアボソンにおけるホッピング$\sum_{<i,j>}J_{ij}\sbr{\cre{b}{i}\ani{b}{j}+h.c.}$の行列成分を計算する．ボンドごとにホッピングの強さが異なる場合にはこれを用いる．
+	
+	\subsubsection*{std::vector<std::pair<int, double> > cal\_Sx(int l, computational\_basis \&basis, double h)}
+	一様な横磁場$h\sum_i\hat{S}^{x}_i$の行列成分を計算する．
+	
+	\subsubsection*{std::vector<std::pair<int, double> > cal\_Sx\_interaction(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, double U)}
+	
+	\subsubsection*{double cal\_Sz(int l, computational\_basis \&basis, double h);}
+	一様な磁場$h\sum_i\hat{S}^{z}_i$の行列成分を計算する．この物理量は計算基底の元では対角的なので，l行l列の行列成分を返す．
+	
+	\subsubsection*{double cal\_Sz\_disorder(int l, computational\_basis \&basis, std::vector<double> \&h)}
+	一様でない磁場$\sum_ih_i\hat{S}^{z}_i$の行列成分を計算する．
+	
+	\subsubsection*{double cal\_Sz\_interaction(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, double U)}
+	スピンのz方向のカップリング$U\sum_{<i,j>}\hat{S}^{z}_i\hat{S}^z_j$を計算する．
+	
+	\subsubsection*{double cal\_interaction(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, double U)}
+	ハードコアボソンの近接相互作用$U\sum_{<i,j>}\cre{b}{i}\ani{b}{i}\cre{b}{j}\ani{b}{j}$の行列成分を計算する．
+	
+	\subsubsection*{double cal\_interaction\_disordered(int l, computational\_basis \&basis, std::vector<std::pair<int, int> > \&bonds, std::vector<double> \&U)}
+	ハードコアボソンの近接相互作用$\sum_{<i,j>}U_{ij}\cre{b}{i}\ani{b}{i}\cre{b}{j}\ani{b}{j}$の行列成分を計算する．相互作用の強さがボンドごとに異なる場合に使う．
+	
+	\subsubsection*{double cal\_onsite(int l, computational\_basis \&basis, std::vector<double> \&potential)}
+	ハードコアボソンのオンサイトポテンシャル$\sum_i h_i\cre{b}{i}\ani{b}{i}$の行列成分を計算する．
+	
+	\section{observable.h}
+	observable.h　では，observable\_base.h で仮想的に定義した基底クラスを継承して，具体的な物理量を定義している．このヘッダファイルには基本となる幾つかの物理量を定義しているが，このファイルにないような物理量を用いたいときには，自分で独自のものを作成することができる．作成方法で述べる．
+	
+	以下に示すクラスはいずれも
+	\begin{itemize}
+		\item cal\_elements
+		\item cal\_matrix
+	\end{itemize}
+	の2つのメンバ関数を持つため，それ以外のメンバを持つときのみ，その関数を示す．また，いずれの物理量でも境界条件は周期的境界条件を用いている．また，サイト数を$L$とし，和$\sum_i$は$1$から$L$まで取るものとする．
+	
+	\subsubsection{class XXZ\_with\_NNN}
+	次近接相互作用を含むXXZ模型
+	\begin{align*}
+	\hat{O}&=\frac{1}{1+\lambda}\sbr{\hami_{XXZ}+\lambda\hat{W}}\\
+	\hami_{XXZ}&=-J\sum_{i=1}^{L}\sbr{\cre{b}{i}\ani{b}{i+1}+h.c.} +U\sum_{i=1}^{L}\hat{n}_i\hat{n}_{i+1},\nonumber\\
+	\hat{W}&=-J\sum_{i=1}^{L}\sbr{\cre{b}{i}\ani{b}{i+2}+h.c.} +U\sum_{i=1}^{L}\hat{n}_i\hat{n}_{i+2},\nonumber\\
+	\end{align*}
+	を定義する．
+	
+	\begin{itemize}
+		\item XXZ\_with\_NNN::XXZ\_with\_NNN(double J, double U, double lambda)
+		
+		コンストラクタ．$J$, $U$, $\lambda$の値を調整することで様々な模型を作ることができる．例えば，$J=1$, $U=0$, $\lambda = 0$でXX模型，$J=1$, $U=1$, $\lambda = 0$でハイゼンベルク模型が計算できる．
+	\end{itemize}
+	
+	\subsubsection{class MBL}
+	ハイゼンベルク模型に$[-W,W]$の一様ランダム磁場$h_i$を加えた模型
+	\begin{equation}
+	\hat{O}=-J\sum_{i}\mathbf{\hat{S}}_i\cdot\mathbf{\hat{S}}_{i+1}+\sum_ih_i\hat{S}^z_i\nonumber
+	\end{equation}
+	を定義する．この模型ではランダム磁場が大きい場合にはmany-body localization (MBL) が起きる．
+	
+	\begin{itemize}
+		\item MBL::MBL(double W, double J)
+		
+		コンストラクタ．
+		
+		\item MBL::MBL(double W, double J, int seed)
+		
+		コンストラクタ．乱数を生成する際のseed を固定する．
+		
+		\item void MBL::reset\_disorder()
+		
+		ランダム磁場をリセットする．
+	\end{itemize}
+
+	\subsubsection{class transverse\_field\_ising}
+	横磁場イジング模型
+	\begin{equation}
+	\hat{O}=J\sum_{i}\hat{S}^z_i\hat{S}^z_{i+1}+h\sum_i\hat{S}^x_i\nonumber
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item transverse\_field\_ising::transverse\_field\_ising(double J, double h)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	\subsubsection{class x\_coupling}
+	スピンx方向のカップリング
+	\begin{equation}
+	\hat{O}=\frac{J}{L}\sum_i\hat{S}^x_i\hat{S}^x_{i+1}\nonumber
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item x\_coupling::x\_coupling(double J)
+		
+		コンストラクタ．
+	\end{itemize}
+
+	\subsubsection{class z\_coupling}
+	スピンz方向のカップリング
+	\begin{equation}
+	\hat{O}=\frac{J}{L}\sum_i\hat{S}^z_i\hat{S}^z_{i+1}\nonumber
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item z\_coupling::z\_coupling(double J)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	\subsubsection{sum\_Sx}
+	x方向の磁化の和
+	\begin{equation}
+	\hat{O}=\frac{h}{L}\sum_i\hat{S}^x_i\nonumber
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item sum\_Sx::sum\_Sx(double h)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	
+	\subsubsection{sum\_Sz}
+	z方向の磁化の和
+	\begin{equation}
+	\hat{O}=\frac{h}{L}\sum_i\hat{S}^z_i\nonumber
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item sum\_Sz::sum\_Sz(double h)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	\subsubsection{hopping}
+	ハードコアボソンのホッピング
+	\begin{equation}
+	\hat{O}=\frac{1}{L}\sum_i\sbr{\cre{b}{i}\ani{b}{i+n}+h.c.}
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item hopping::hopping(int distance)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	\subsubsection{momentum}
+	ハードコアボソンの運動量分布
+	\begin{equation}
+	\hat{O}=\frac{1}{L}\sum_{i,j}e^{-i\frac{2\pi}{L}k(i-j)}\cre{b}{i}\ani{b}{j}
+	\end{equation}
+	を定義する．
+	
+	\begin{itemize}
+		\item momentum::momentum(int k)
+		
+		コンストラクタ．
+	\end{itemize}
+	
+	\subsubsection{momentum\_0}
+	波数$k=0$のハードコアボソンの運動量分布
+	\begin{equation}
+	\hat{O}=\frac{1}{L}\sum_{i,j}\cre{b}{i}\ani{b}{j}
+	\end{equation}
+	を定義する．
+	
+	
+	\section{translation.h}
+	\subsubsection{class translational\_basis}
+	並進操作の固有ベクトルで張られる基底（以下では並進基底と呼ぶ）を扱うクラス．並進基底を利用すると，並進対称な物理量をブロック対角化することができる．並進操作の固有値は$e^{2\pi i \frac{r}{L}}$と表されるため，以下では$r$を固有値のラベルとして用いる．
+	
+	\begin{itemize}
+		\item translational\_basis::translational\_basis(computational\_basis \&c\_basis)
+		
+		コンストラクタ．入力された計算基底c\_basis を基に並進基底を形成する．
+		
+		\item translational\_basis::ref\_d()
+		
+		元となる計算基底の次元を返す．
+		
+		\item translational\_basis::ref\_D(int r)
+		
+		固有値$r$の基底の次元を返す．
+		
+		\item void translational\_basis::cal\_observable(Eigen::SparseMatrix<std::complex<double> > \&obs, observable\_base \&operation, int r, bool isTranslational = true)
+		
+		物理量operation を固有値$r$の並進基底の元で行列表示して行列obs に格納する．isTranslational は物理量が並進対称であるかを示しており，true の場合には並進対称性を利用したアルゴリズムが用いられる．この引数はデフォルトではtrue になっているため，並進対称でない物理量を計算する場合には第4引数にfalseを入れ忘れないように注意．
+		
+		\item void translational\_basis::cal\_observable(Eigen::SparseMatrix<std::complex<double> > \&obs, observable\_base\_complex \&operation, int r, bool isTranslational = true)
+		
+		物理量が複素数の場合にはこちらが呼ばれる．
+		
+		\item Eigen::VectorXcd translational\_basis::eigenvector(int r, int index)
+		
+		並進操作に関する，固有値$r$の$index$番目の固有ベクトルを計算基底の表示で返す．
+		
+		\item Eigen::VectorXcd translational\_basis::c\_to\_t(Eigen::VectorXd \&vc, int r)
+		
+		計算基底で表示されたベクトルvc の固有値$r$の並進基底での表現を返す．
+		
+		\item Eigen::VectorXcd translational\_basis::c\_to\_t(Eigen::VectorXcd \&vc, int r)
+		
+		計算基底で表示されたベクトルvc の固有値$r$の並進基底での表現を返す．
+		
+		\item Eigen::VectorXcd translational\_basis::t\_to\_c(Eigen::VectorXd \&vt, int r)
+		
+		固有値$r$の並進基底で表示されたベクトルvt の計算基底での表現を返す．
+		
+		\item std::pair<int, std::complex<double> > c\_basis\_to\_t\_basis(int c\_index, int r)
+		
+		c\_index番目の計算基底は固有値$r$の並進基底では何番目にどれだけの成分を持つかを返す．
+		
+	\end{itemize}
+	
+	\section{ss.h}
+	ss.h はSS法を実装したクラス ss\_method と，その実装に必要な線形方程式を解くクラス komega\_cocg，komega\_bicg，および，ランダムベクトルを作成するためのクラス random\_vector からなる．
+	
+	\subsubsection{class ss\_method}
+	このクラスではSS法に基づいて，行列の固有ベクトルを計算する．このクラスはopenmpによって並列化されており，関数enable\_openmp を呼び出すことで計算の一部を並列化することができる．このクラスは基本的に関数eigenstate を呼び出すだけで十分に使うことができるが，より高度な並列化を行う場合などに備えて，SS法のアルゴリズムの要所を支援する関数もメンバに含まれている．
+	
+	\begin{itemize}
+		\item ss\_method::ss\_method(Eigen::SparseMatrix<double> \&H)
+		
+		コンストラクタ．固有ベクトルを求めたい疎行列H を入力する．
+		
+		ss\_method::ss\_method(Eigen::SparseMatrix<std::complex<double> > \&H)
+		
+		コンストラクタ．疎行列H が複素数の場合にはこちらが呼ばれる．
+		
+		\item void ss\_method::eigenstate(Eigen::MatrixXcd \&evec, Eigen::VectorXd \&E, double gamma, double rho)
+		
+		$[\gamma-\rho,\gamma+\rho]$の範囲に含まれる固有ベクトル・固有値を計算してevec, Eに格納する．
+		
+		\item Eigen::MatrixXcd ss\_method::projection(Eigen::VectorXcd \&v, double gamma, double rho, int m)
+		
+		ベクトルvの$[\gamma-\rho,\gamma+\rho]$の範囲の固有ベクトルに関する射影ベクトルを計算する関数．一本のベクトルvからm本の射影ベクトルが計算される．
+		
+		\item int ss\_method::num\_states(double gamma, double rho)
+		
+		の$[\gamma-\rho,\gamma+\rho]$の範囲の固有ベクトルの数を見積もる関数．openmpによって並列化されている．
+		
+		
+		\item void ss\_method::projection\_to\_eigenstate(Eigen::MatrixXcd \&evec, Eigen::VectorXd \&E, Eigen::MatrixXcd \&S)
+		
+		計算した射影ベクトルS　から固有ベクトルと固有値を計算してevec，Eに格納する．
+		
+		\item void ss\_method::precision\_check(Eigen::MatrixXcd \&evec, Eigen::VectorXd \&E)
+		
+		SS法で計算した固有ベクトルと固有値の精度を調べる試験用の関数．
+		
+		\item void ss\_method::enable\_openmp(int n\_threads)
+		
+		openmp による並列化を有効にする．呼び出すと，射影ベクトルの計算がn\_threads並列で計算されるようになる．
+		
+		\item void ss\_method::memory\_setting(int memory)
+		
+		ss\_method::eigenstate では，メモリを過剰に使いすぎてしまわないように，固有ベクトル数を見積もった時点で計算に必要なメモリ数を計算してそれが上限を超える場合には停止するようになっている．この上限値はデフォルトでは32GBになっているが，この関数を呼び出すことで変更することができる．
+		
+		\item void ss\_method::itermax\_setting(int itermax)
+		
+		線形方程式を反復法で解く際の，反復回数の上限を設ける．デフォルトでは上限はない設定になっている．
+		
+		\item void ss\_method::threshold\_setting(int threshold)
+		
+		線形方程式を反復法で解く際の，解の精度を設定する．デフォルトでは$10^{-10}$となっている．
+		
+		\item void ss\_method::contour\_setting(int contour, int n, double contour\_para)
+		
+		SS法における，複素積分の積分経路を設定する．このクラスでは，複素積分をn 点での台形則で評価している．contour は積分経路の形状を表しており，contour = 0 のときは楕円，contour = 1の時は長方形を積分経路とする．また，contour\_para は経路を特徴付けるパラメータであり，楕円のときは長径と短形の比，長方形のときは高さ（虚軸側）の$1/2$を表す．デフォルトではcontour = 0，contour\_para = 0.1 となっている．
+		
+		
+		\item void ss\_method::copy\_setting(int m, int step)
+		
+		一本のベクトルから何本の射影ベクトルを計算するかを設定する．一本目の射影ベクトルを$\ket{s}$としたとき，$\ket{s}$, $\hami^{step}\ket{s}$, $\hami^{2*step}\ket{s}$, $\cdots$, $\hami^{(m-1)*step}\ket{s}$のm本のベクトルが射影ベクトルとして計算されるようになる．デフォルトではm = 4, step = 1となっている．
+		
+		\item void ss\_method::kappa\_setting(double kappa)
+		
+		num\_states で見積もった必要な射影ベクトル数の何倍の射影ベクトルを求めるかの設定．数値計算で求めた射影ベクトルは，数値誤差により積分経路外の固有ベクトルについてもわずかに成分を持ってしまっているため，見積もり数より多くの射影ベクトルを計算しておかないと，射影演算子をうまく構築することができない．デフォルトではkappa = 2 となっている．
+		
+		\item void ss\_method::cutoff\_setting(double cutoff)
+		
+		求めた射影ベクトルから線形独立な直交ベクトルを取り出すために特異値分解をする際，最大特異値との比がcutoff を下回っているような特異値は$0$とみなす．デフォルトではcutoff~$= 10^{-10}$となっている．
+		
+		
+		
+	\end{itemize}
+	
+	
+	
+	\section{free\_fermion.h}
+	
+	\section{log.h}
+	
+\end{document}
